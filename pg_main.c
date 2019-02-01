@@ -27,10 +27,8 @@
 
 #include <valgrind/pub_tool_basics.h>
 #include <valgrind/pub_tool_hashtable.h>
-#include <valgrind/pub_tool_debuginfo.h>
 #include <valgrind/pub_tool_mallocfree.h>
 #include <valgrind/pub_tool_tooliface.h>
-#include <valgrind/pub_tool_libcassert.h>
 #include <valgrind/pub_tool_libcbase.h>
 #include <valgrind/pub_tool_libcfile.h>
 #include <valgrind/pub_tool_libcprint.h>
@@ -57,7 +55,7 @@ struct pageaddr_order
 {
   VgHashNode top;
   unsigned int codefault;
-  unsigned long int count;
+  UInt count;
   unsigned long long int ticks;
   HChar where[0];
 };
@@ -74,7 +72,7 @@ newpage (bool codefault, Addr dataaddr, Addr lastaddr)
 
   if (VG_(HT_lookup) (ht, pageaddr) == NULL)
     {
-      static unsigned long int total;
+      static UInt total;
 
       __auto_type cur_ep = VG_(current_DiEpoch) ();
       __auto_type buf = VG_(describe_IP) (cur_ep, lastaddr, NULL);
