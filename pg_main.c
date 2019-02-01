@@ -68,7 +68,7 @@ newpage (bool codefault, Addr dataaddr, Addr lastaddr)
   if (codefault)
     pageaddr = PAGE_MASK (lastaddr);
   else
-    pageaddr = PAGE_MASK (dataaddr);
+    pageaddr = dataaddr;
 
   if (VG_(HT_lookup) (ht, pageaddr) == NULL)
     {
@@ -111,7 +111,7 @@ newdatapage (Addr dataaddr, Addr lastaddr)
   if (PAGE_MASK (dataaddr) != pageaddr)
     {
       pageaddr = PAGE_MASK (dataaddr);
-      newpage (false, dataaddr, lastaddr);
+      newpage (false, pageaddr, lastaddr);
     }
 }
 
