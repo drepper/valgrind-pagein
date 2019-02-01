@@ -189,7 +189,7 @@ void pg_fini (Int exitcode __attribute__((unused)))
 
   VG_(HT_ResetIter) (ht);
   VgHashNode *nd;
-  int nres = 0;
+  UInt nres = 0;
   while ( (nd = VG_(HT_Next) (ht)) )
     res[nres++] = (struct pageaddr_order *) nd;
 
@@ -204,10 +204,10 @@ void pg_fini (Int exitcode __attribute__((unused)))
     return;
   int fd = sr_Res (fdres);
 
-  for (int i = 0; i < nres; ++i)
+  for (UInt i = 0; i < nres; ++i)
     {
       HChar buf[1024];
-      Int len = VG_(snprintf) (buf, sizeof (buf), "%4d %#0*lx %c %12llu %s\n",
+      Int len = VG_(snprintf) (buf, sizeof (buf), "%4u %#0*lx %c %12llu %s\n",
                                i, (int)(2 + 2 * sizeof (void*)), res[i]->top.key,
                                res[i]->codefault ? 'C' : 'D',
                                res[i]->ticks - res[0]->ticks, res[i]->where);
