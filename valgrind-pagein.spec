@@ -44,8 +44,9 @@ make install DESTDIR=$RPM_BUILD_ROOT
 
 
 %changelog
-* Fri Feb 1 2019  Ulrich Drepper <drepper@redhat.com> - 1.2
+* Fri Feb 1 2019  Ulrich Drepper <drepper@redhat.com> - 1.2-1
 - Patch by Will Cohen <wcohen@redhat.com> to support recent
-  versions of valgrind
-* Thu May 31 2012 Ulrich Drepper <drepper@gmail.com> -
+  versions of valgrind.  Moved to github.
+
+* Thu May 31 2012 Ulrich Drepper <drepper@gmail.com> - 1.1-1
 - Initial build.
