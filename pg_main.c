@@ -196,7 +196,7 @@ void pg_fini (Int exitcode __attribute__((unused)))
   VG_(ssort) (res, nres, sizeof (res[0]), rescompare);
 
   HChar fname[VG_(strlen) (base_dir) + sizeof ("/pagein.") + sizeof (pid_t) * 3];
-  VG_(sprintf) (fname, "%s/pagein.%d", base_dir, VG_(getpid) ());
+  VG_(snprintf) (fname, sizeof(fname), "%s/pagein.%d", base_dir, VG_(getpid) ());
 
   SysRes fdres = VG_(open) (fname, VKI_O_CREAT|VKI_O_TRUNC|VKI_O_WRONLY,
                             VKI_S_IRUSR|VKI_S_IWUSR);
