@@ -4,7 +4,7 @@
 /*--------------------------------------------------------------------*/
 
 /*
-   Copyright (C) 2005, 2006, 2012 Ulrich Drepper <drepper@gmail.com>
+   Copyright (C) 2005, 2006, 2012, 2019 Ulrich Drepper <drepper@redhat.com>
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License as
@@ -36,10 +36,13 @@
 #include <valgrind/pub_tool_vki.h>
 
 
+static const size_t page_size = 4096;
+#define PAGE_MASK(addr) ((addr) & ~(page_size - 1))
+
 #define vgPlain_malloc(size) vgPlain_malloc ((char *) __func__, size)
 
-static VgHashTable ht;
-static Char base_dir[4096];
+static VgHashTable *ht;
+static const Char *base_dir;
 
 
 static void
@@ -63,16 +66,16 @@ newpage (bool codefault, Addr dataaddr, Addr lastaddr)
 {
   Addr pageaddr;
   if (codefault)
-    pageaddr = lastaddr & ~4095;
+    pageaddr = PAGE_MASK(lastaddr);
   else
-    pageaddr = dataaddr & ~4095;
+    pageaddr = PAGE_MASK(dataaddr);
 
   if (VG_(HT_lookup) (ht, pageaddr) == NULL)
     {
       static unsigned long int total;
 
-      Char buf[1024];
-      VG_(describe_IP) (lastaddr, buf, 1024);
+      const DiEpoch cur_ep = VG_(current_DiEpoch)();
+      const HChar *buf = VG_(describe_IP) (cur_ep, lastaddr, NULL);
       size_t len = VG_(strlen) (buf) + 1;
 
       struct pageaddr_order *pa = VG_(malloc) (sizeof (*pa) + len);
@@ -82,10 +85,10 @@ newpage (bool codefault, Addr dataaddr, Addr lastaddr)
       unsigned long int old_total;
 #ifdef __x86_64__
       asm volatile ("lock; xaddq %0, %2"
-		    : "=r" (old_total) : "0" (1), "m" (total));
+        : "=r" (old_total) : "0" (1), "m" (total));
 #elif defined __i386__
       asm volatile ("lock; xaddl %0, %2"
-		    : "=r" (old_total) : "0" (1), "m" (total));
+        : "=r" (old_total) : "0" (1), "m" (total));
 #else
 # error "unsupported architecture"
 #endif
@@ -110,7 +113,6 @@ newcodepage (Addr addr)
   newpage (true, 0, addr);
 }
 
-#define PS 4096
 
 static void
 VG_REGPARM (2)
@@ -118,23 +120,21 @@ newdatapage (Addr dataaddr, Addr lastaddr)
 {
   static Addr64 pageaddr;
 
-  if ((dataaddr & ~(PS - 1)) != pageaddr)
+  if (PAGE_MASK (dataaddr) != pageaddr)
     {
-      pageaddr = dataaddr & ~(PS - 1);
+      pageaddr = PAGE_MASK (dataaddr);
       newpage (false, dataaddr, lastaddr);
     }
 }
 
 
 static IRSB *
-pg_instrument (VgCallbackClosure *closure, IRSB *bbIn, VexGuestLayout *layout,
-	       VexGuestExtents *vge, IRType gWordTy, IRType hWordTy)
+pg_instrument (VgCallbackClosure *closure, IRSB *bbIn, const VexGuestLayout *layout,
+               const VexGuestExtents *vge, const VexArchInfo *archinfo_host,
+               IRType gWordTy, IRType hWordTy)
 {
   /* Set up BB.  */
-  IRSB *bbOut = emptyIRSB ();
-  bbOut->tyenv = deepCopyIRTypeEnv (bbIn->tyenv);
-  bbOut->next = deepCopyIRExpr (bbIn->next);
-  bbOut->jumpkind = bbIn->jumpkind;
+  IRSB *bbOut = deepCopyIRSBExceptStmts (bbIn);
 
   /* Copy input to output while insert code to keep track of new page
      uses.  */
@@ -146,31 +146,31 @@ pg_instrument (VgCallbackClosure *closure, IRSB *bbIn, VexGuestLayout *layout,
       IRStmtTag tag = bbIn->stmts[i]->tag;
 
       if (tag == Ist_IMark)
-	{
-	  lastaddr = bbIn->stmts[i]->Ist.IMark.addr;
+        {
+          lastaddr = bbIn->stmts[i]->Ist.IMark.addr;
 
-	  if (first || (lastaddr & ~(PS - 1)) != pageaddr)
-	    {
-	      IRDirty *di = unsafeIRDirty_0_N (1, "newcodepage",
-					       VG_(fnptr_to_fnentry)(&newcodepage),
-					       mkIRExprVec_1 (mkIRExpr_HWord ((HWord) lastaddr)));
-	      addStmtToIRSB (bbOut, IRStmt_Dirty (di));
-	      pageaddr = lastaddr & ~(PS - 1);
-	    }
-	}
+          if (first || PAGE_MASK(lastaddr) != pageaddr)
+            {
+              IRDirty *di = unsafeIRDirty_0_N (1, "newcodepage",
+                                               VG_(fnptr_to_fnentry)(&newcodepage),
+                                               mkIRExprVec_1 (mkIRExpr_HWord ((HWord) lastaddr)));
+              addStmtToIRSB (bbOut, IRStmt_Dirty (di));
+              pageaddr = PAGE_MASK (lastaddr);
+            }
+        }
       else if (tag != Ist_NoOp && tag != Ist_AbiHint)
-	{
-	  addStmtToIRSB (bbOut, bbIn->stmts[i]);
+        {
+          addStmtToIRSB (bbOut, bbIn->stmts[i]);
 
-	  if (tag == Ist_Store)
-	    {
-	      IRDirty *di = unsafeIRDirty_0_N (2, "newdatapage",
-					       VG_(fnptr_to_fnentry)(&newdatapage),
-					       mkIRExprVec_2 (bbIn->stmts[i]->Ist.Store.addr,
-							      mkIRExpr_HWord ((HWord) lastaddr)));
-	      addStmtToIRSB (bbOut, IRStmt_Dirty (di));
-	    }
-	}
+          if (tag == Ist_Store)
+            {
+              IRDirty *di = unsafeIRDirty_0_N (2, "newdatapage",
+                                               VG_(fnptr_to_fnentry)(&newdatapage),
+                                               mkIRExprVec_2 (bbIn->stmts[i]->Ist.Store.addr,
+                                                              mkIRExpr_HWord ((HWord) lastaddr)));
+              addStmtToIRSB (bbOut, IRStmt_Dirty (di));
+            }
+        }
     }
 
   return bbOut;
@@ -181,10 +181,10 @@ static struct pageaddr_order **res;
 static int nres;
 
 static Int
-rescompare (void *p1, void *p2)
+rescompare (const void *p1, const void *p2)
 {
-  struct pageaddr_order **a1 = (struct pageaddr_order **) p1;
-  struct pageaddr_order **a2 = (struct pageaddr_order **) p2;
+  const struct pageaddr_order **a1 = (const struct pageaddr_order **) p1;
+  const struct pageaddr_order **a2 = (const struct pageaddr_order **) p2;
 
   if ((*a1)->count < (*a2)->count)
     return -1;
@@ -208,15 +208,15 @@ void pg_fini (Int exitcode)
   VG_(sprintf) (fname, "%s/pagein.%d", base_dir, VG_(getpid) ());
 
   SysRes fdres = VG_(open) (fname, VKI_O_CREAT|VKI_O_TRUNC|VKI_O_WRONLY,
-			    VKI_S_IRUSR|VKI_S_IWUSR);
+                            VKI_S_IRUSR|VKI_S_IWUSR);
 
   for (int i = 0; i < nres; ++i)
     {
       Char buf[1024];
       Int len = VG_(snprintf) (buf, sizeof (buf), "%4d %18p %c %12llu %s\n",
-			       i, res[i]->top.key,
-			       res[i]->codefault ? 'C' : 'D',
-			       res[i]->ticks - res[0]->ticks, res[i]->where);
+                               i, res[i]->top.key,
+                               res[i]->codefault ? 'C' : 'D',
+                               res[i]->ticks - res[0]->ticks, res[i]->where);
       VG_(write) (fdres._val, buf, len);
     }
 
@@ -231,8 +231,8 @@ void pg_pre_clo_init (void)
    VG_(details_version)         (VERSION);
    VG_(details_description)     ("determine page-in order");
    VG_(details_copyright_author)(
-      "Copyright (C) 2005, 2006, 2007, 2012 and GNU GPL'd, by Ulrich Drepper.");
-   VG_(details_bug_reports_to)  ("drepper@gmail.com");
+      "Copyright (C) 2005, 2006, 2007, 2012, 2019 and GNU GPL'd, by Ulrich Drepper.");
+   VG_(details_bug_reports_to)  ("drepper@redhat.com");
 
    VG_(basic_tool_funcs)        (pg_post_clo_init,
                                  pg_instrument,
@@ -242,7 +242,7 @@ void pg_pre_clo_init (void)
 
   ht = VG_(HT_construct) ("ht");
 
-  VG_(get_startup_wd) (base_dir, sizeof (base_dir));
+  base_dir = VG_(get_startup_wd) ();
 }
 
 

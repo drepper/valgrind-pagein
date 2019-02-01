@@ -1,5 +1,5 @@
 Name:		valgrind-pagein
-Version:	1.1
+Version:	1.2
 Release:	1%{?dist}
 Summary:	Valgrind tool to determine page-in order
 
@@ -9,6 +9,7 @@ URL:		https://github.com/drepper/valgrind-pagein
 Source0:	%{name}-%{version}.tar.bz2
 
 BuildRequires:	valgrind-devel
+BuildRequires:	valgrind-tools-devel
 BuildRequires:	pkgconfig
 
 
@@ -42,5 +43,8 @@ make install DESTDIR=$RPM_BUILD_ROOT
 
 
 %changelog
+* Fri Feb 1 2019  Ulrich Drepper <drepper@redhat.com> - 1.2
+- Patch by Will Cohen <wcohen@redhat.com> to support recent
+  versions of valgrind
 * Thu May 31 2012 Ulrich Drepper <drepper@gmail.com> -
 - Initial build.

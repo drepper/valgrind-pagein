@@ -2,7 +2,8 @@ CC = gcc
 OPTS = -O2 -g -std=gnu99
 DEFINES = -DVGO_linux -DVGA_$(ARCH) -DVGP_$(ARCH)_linux \
 	  -DVERSION=\"$(VERSION)\" $(shell pkg-config --cflags valgrind)
-CFLAGS = $(OPTS) $(INCLUDES) $(DEFINES)
+WARN = -Wall -Wshadow
+CFLAGS = $(OPTS) $(INCLUDES) $(DEFINES) $(WARN)
 VERSION := $(shell sed -n 's/Version:[[:space:]]*\(.*\)/\1/p' valgrind-pagein.spec)
 ARCH = $(shell pkg-config --variable=arch valgrind)
 
