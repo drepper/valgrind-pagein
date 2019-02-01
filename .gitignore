@@ -1,3 +1,5 @@
 pagein
 *.o
 valgrind-pagein-*.tar.bz2
+valgrind-pagein.sublime-project
+valgrind-pagein.sublime-workspace
