@@ -11,6 +11,7 @@ Source0:	%{name}-%{version}.tar.bz2
 BuildRequires:	valgrind-devel
 BuildRequires:	valgrind-tools-devel
 BuildRequires:	pkgconfig
+Requires:		valgrind
 
 
 # Disable build root strip policy
