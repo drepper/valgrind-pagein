@@ -1,0 +1,3 @@
+pagein
+*.o
+valgrind-pagein-*.tar.bz2
